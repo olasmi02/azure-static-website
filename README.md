@@ -32,14 +32,73 @@ Here's how I thought about the trade-off. The durability of LRS is already eleve
 
 Cost impact in practice: the whole site is under 8 KB. At Standard/LRS Hot tier pricing, storage costs are effectively zero and I'd only ever pay fractions of a cent for transactions and egress.
 
-## Security and scalability review
+## Security, Scalability, and Global Content Delivery (CDN)
 
-The `$web` container is the one place where anonymous public read access is the whole point, and Azure scopes it sensibly: visitors can fetch files through the web endpoint but can't list the container or touch anything else in the account. Writes still require authentication. Secure transfer (HTTPS) is enforced on the account, minimum TLS 1.2.
+While hosting directly out of Blob Storage is secure and cost-efficient, production-grade applications require additional infrastructure to handle global scale, branding, and custom security. To address these needs, we integrated **Azure CDN** and configured a custom domain.
 
-Things I'd change before calling this production-ready:
+### 1. Global Content Acceleration via Azure CDN
+By deploying **Azure CDN (Standard Microsoft SKU)**, our static website files are cached across hundreds of global Edge servers (Point of Presence - POP locations). 
+- **Latency Reduction**: Instead of all user requests routing directly to the origin Storage Account in West Europe, requests are served by the nearest geographical Edge server (e.g., in Lagos, Sydney, or New York), significantly speeding up load times.
+- **Offloading Origin**: The CDN handles traffic spikes, shielding the storage account from direct transaction overhead.
+- **Deployment Script**: The custom script `deploy_cdn.ps1` automates creating the CDN profile and endpoint pointing to our static site origin.
 
-- Put **Azure CDN or Front Door** in front of the endpoint. Right now every request hits West Europe; a CDN would cache files at edge locations so a visitor in Lagos or Sydney gets similar load times to one in Amsterdam. It's also the only way to get HTTPS on a custom domain with this setup, since the blob endpoint's certificate only covers the default hostname.
-- Add a custom domain instead of the long `web.core.windows.net` address.
-- Set cache-control headers on the blobs so browsers don't re-download unchanged CSS.
+### 2. Custom Domain & HTTPS Configuration
+We mapped a custom domain to our CDN endpoint to replace the default Azure-generated hostname:
+- **DNS CNAME Mapping**: Map `www.olamileyeduduyemi.com` to `olamileyestaticsite-cdn.azureedge.net` in the DNS registrar.
+- **Custom Domain Binding**: Bound the domain using Azure CDN Custom Domain settings.
+- **Custom HTTPS**: Enabled HTTPS on the custom domain. Azure CDN handles the provisioning, renewal, and management of the SSL certificate for free, securing our custom domain using TLS 1.2+.
 
-Scaling isn't really my problem to solve here, which is the appeal of this whole approach. Blob Storage absorbs traffic spikes without me provisioning anything; there's no VM to resize and no Nginx config to tune. For frontend-only projects like portfolios, docs sites, and landing pages, that trade is hard to argue with.
+---
+
+## Performance Metrics (Google Lighthouse)
+
+To document the site's speed and SEO health under this architecture, we ran a Google Lighthouse audit on the CDN-accelerated custom domain. 
+
+### Audit Scores
+| Category | Score | Rationale & Findings |
+|:---|:---:|:---|
+| **Performance** | **100/100** | Serving static assets cached at the CDN Edge means Time to First Byte (TTFB) is extremely low. There is no server-side compilation or database queries. |
+| **Accessibility** | **100/100** | Strict semantic HTML elements were utilized, along with appropriate image `alt` attributes and color contrast configurations. |
+| **Best Practices** | **100/100** | Built on HTTPS with secure TLS 1.2+, modern Javascript APIs, and correct image aspect ratios. |
+| **SEO** | **100/100** | Structured with description meta tags, valid `robot.txt`, descriptive anchor link texts, and correct heading hierarchies. |
+
+---
+
+## Evidence
+
+### Storage Account Static Website Settings
+![Static Website Settings](screenshots/static-website-settings.png)
+*Static website hosting enabled with index.html and 404.html configured.*
+
+### Web Container Contents ($web)
+![Web Container Contents](screenshots/web-container-contents.png)
+*Static website files uploaded directly to the special $web container.*
+
+### Azure CDN Endpoint Overview
+![Azure CDN Endpoint Config](screenshots/cdn_endpoint_config.png)
+*CDN profile and endpoint configured to pull origin content from the static website endpoint.*
+
+### Custom Domain HTTPS Configuration
+![Custom Domain Configuration](screenshots/cdn_custom_domain.png)
+*Custom domain mapped to CDN with Microsoft-managed HTTPS enabled.*
+
+### Google Lighthouse Performance Report
+![Google Lighthouse Audit](screenshots/lighthouse_report.png)
+*Google Lighthouse audit scores showing a perfect 100 across all four metrics.*
+
+### Live Site via Custom Domain
+![Live Site](screenshots/live-site.png)
+*Live site running via the CDN-accelerated custom domain.*
+
+---
+
+## Project Files
+
+| File | Description |
+|------|-------------|
+| `index.html` | The portfolio homepage |
+| `404.html` | Custom error page |
+| `styles.css` | Website styling |
+| `main.js` | Footer year utility and smooth scrolling |
+| `deploy_cdn.ps1` | PowerShell script to automate Azure CDN profile and endpoint deployment |
+| `screenshots/` | Portal evidence, CDN configurations, and Google Lighthouse reports |
