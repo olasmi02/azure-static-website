@@ -3,7 +3,7 @@
 # Assignment: Azure Blob Storage Static Web Hosting
 # =============================================================================
 
-$SUBSCRIPTION_ID   = "9335a9cd-ae74-439b-94b3-d965ca478c53"
+$SUBSCRIPTION_ID   = "<subscription-id>"
 $RG_NAME           = "rg-static-website"
 $LOCATION          = "westeurope"
 $STORAGE_ACC_NAME  = "olamileyestaticsite"
